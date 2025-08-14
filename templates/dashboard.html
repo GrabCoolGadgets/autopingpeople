@@ -126,9 +126,7 @@
         
         document.addEventListener('DOMContentLoaded', () => {
             createInitialList();
-            // अब हम पहली बार तुरंत स्टेटस नहीं मांगेंगे, क्योंकि @app.before_request ने पहले ही
-            // पिंग साइकिल चला दिया है। हम बस 1-2 सेकंड बाद ताज़ा जानकारी मांगेंगे।
-            setTimeout(updateStatuses, 1500); // 1.5 सेकंड का इंतज़ार
+            updateStatuses();
             setInterval(updateStatuses, 5000);
         });
     </script>
