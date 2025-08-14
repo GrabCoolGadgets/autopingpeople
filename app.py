@@ -21,7 +21,6 @@ CUSTOMER_DATA_URL = "https://gist.githubusercontent.com/GrabCoolGadgets/e6fb83fa
 # स्टेटस को स्टोर करने के लिए एक फाइल का इस्तेमाल करेंगे
 STATUS_FILE = 'ping_statuses.json'
 
-# --- यह अब खाली शुरू होंगे और Gist से भरे जाएंगे ---
 ALL_CUSTOMERS_BOTS = {}
 ping_statuses = {}
 
@@ -45,10 +44,9 @@ def get_customers_from_gist():
         return response.json()
     except Exception as e:
         logging.error(f"CRITICAL: Failed to fetch customer data from GitHub: {e}")
-        return ALL_CUSTOMERS_BOTS # अगर Gist न मिले, तो पुरानी लिस्ट ही इस्तेमाल करो
+        return ALL_CUSTOMERS_BOTS
 
 def update_customer_data_only():
-    """यह फंक्शन सिर्फ Gist से डेटा लाएगा।"""
     global ALL_CUSTOMERS_BOTS
     
     logging.info("--- Checking for Gist updates... ---")
@@ -61,16 +59,14 @@ def update_customer_data_only():
         logging.info("No changes in customer data.")
 
 def ping_all_services():
-    """यह फंक्शन सिर्फ पिंग करेगा।"""
     if not ALL_CUSTOMERS_BOTS:
-        logging.warning("Customer list is empty. Skipping ping cycle.")
-        return
-        
-    all_bots_to_ping = list(set([url for bots in ALL_CUSTOMERS_BOTS.values() for url in bots.values()]))
-    
+        update_customer_data_only() # अगर लिस्ट खाली है तो फिर से कोशिश करो
+
     if not lock.acquire(blocking=False): return
     try:
+        all_bots_to_ping = list(set([url for bots in ALL_CUSTOMERS_BOTS.values() for url in bots.values()]))
         logging.info(f"--- Ping cycle started for {len(all_bots_to_ping)} total bots... ---")
+
         pinger_dashboard_url = os.environ.get('RENDER_EXTERNAL_URL')
         if pinger_dashboard_url and pinger_dashboard_url not in all_bots_to_ping:
             all_bots_to_ping.append(pinger_dashboard_url)
@@ -89,7 +85,7 @@ def ping_all_services():
                     current_statuses[url] = {'status': 'down', 'code': response.status_code, 'error': f"HTTP {response.status_code}", 'timestamp': timestamp}
             except requests.RequestException as e:
                 current_statuses[url] = {'status': 'down', 'code': None, 'error': str(e.__class__.__name__), 'timestamp': timestamp}
-            time.sleep(1)
+            time.sleep(2)
         
         write_statuses(current_statuses)
         logging.info("--- Ping Cycle Finished and statuses saved. ---")
@@ -118,16 +114,18 @@ def get_status():
     statuses = read_statuses()
     return jsonify({'statuses': statuses})
     
-# --- यह है सबसे बड़ा और सही बदलाव ---
 scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
-# अलार्म #1: पिंगर, जो हर 5 मिनट में चलेगा (सुरक्षित)
 scheduler.add_job(ping_all_services, 'interval', minutes=5)
-# अलार्म #2: डेटा चेकर, जो हर 10 सेकंड में चलेगा (सुपर फास्ट!)
-scheduler.add_job(update_customer_data_only, 'interval', seconds=10)
+# डेटा चेकर को भी 5 मिनट पर ही रखते हैं ताकि ज़्यादा लोड न पड़े
+scheduler.add_job(update_customer_data_only, 'interval', minutes=5)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    # सर्वर शुरू होते ही पहली बार डेटा लोड करो
+    # --- यह है सबसे बड़ा और सही बदलाव ---
+    # सर्वर शुरू होते ही पहली बार ग्राहक का डेटा लोड करो
     update_customer_data_only()
+    # और फिर तुरंत एक बार पिंग करो!
+    ping_all_services()
+    # अब सर्वर को चलाओ
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
