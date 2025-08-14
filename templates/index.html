@@ -3,111 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Realtime Bot Monitor</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f4f7f9; margin: 0; padding: 1.5rem; }
-        .container { max-width: 800px; margin: auto; }
-        .header { text-align: center; margin-bottom: 2rem; }
-        .header h1 { color: #1a202c; margin-bottom: 0.5rem; }
-        .header #last-updated { font-size: 0.9rem; color: #718096; }
-        .url-list { list-style: none; padding: 0; }
-        .url-item { background-color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
-        .url-info a { font-weight: 600; color: #2b6cb0; text-decoration: none; word-break: break-all; }
-        .url-details { font-size: 0.85rem; color: #4a5568; margin-top: 5px; }
-        .status { padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; color: white; width: 100px; text-align: center; }
-        .status.live { background-color: #38a169; }
-        .status.down { background-color: #e53e3e; }
-        .status.recovered { background-color: #dd6b20; }
-        .status.waiting { background-color: #a0aec0; }
-    </style>
+    <title>Uptime Pinger - Keep Your Bots Alive 24/7</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🚀 Realtime Bot Monitor</h1>
-            <p id="last-updated">Fetching latest status...</p>
+<body class="bg-gray-100 font-sans">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/" class="text-2xl font-bold text-gray-800">🚀 UptimePinger</a>
+            <a href="#pricing" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Pricing</a>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <main class="container mx-auto px-6 py-16 text-center">
+        <h1 class="text-4xl font-bold text-gray-800 mb-4">Never Let Your Telegram Bot Sleep Again!</h1>
+        <p class="text-lg text-gray-600 mb-8">Simple, affordable, and reliable pinging service to keep your bots online 24/7 on free hosting platforms like Render.</p>
+        <a href="#contact" class="px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600">Get Started Now</a>
+    </main>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="bg-white py-16">
+        <div class="container mx-auto px-6 text-center">
+            <h2 class="text-3xl font-bold text-gray-800 mb-8">Simple & Transparent Pricing</h2>
+            <div class="inline-block bg-gray-100 rounded-lg shadow-lg p-8">
+                <h3 class="text-2xl font-semibold text-gray-800">Standard Plan</h3>
+                <p class="text-5xl font-bold text-blue-600 my-4">₹20<span class="text-lg font-normal"> /bot /month</span></p>
+                <ul class="text-gray-600 text-left space-y-2">
+                    <li><i class="fas fa-check-circle text-green-500 mr-2"></i>5-Minute Ping Interval</li>
+                    <li><i class="fas fa-check-circle text-green-500 mr-2"></i>Keeps Bot Alive 24/7</li>
+                    <li><i class="fas fa-check-circle text-green-500 mr-2"></i>Personal Monitoring Dashboard</li>
+                    <li><i class="fas fa-check-circle text-green-500 mr-2"></i>Pay via UPI (GPay, PhonePe)</li>
+                </ul>
+            </div>
         </div>
-        <ul class="url-list">
-            <!-- JavaScript will build this list -->
-        </ul>
-    </div>
+    </section>
 
-    <script>
-        function createInitialList() {
-            const urls = {{ bot_urls_for_this_page | tojson }};
-            const urlList = document.querySelector('.url-list');
-            
-            if (urls.length === 0) {
-                urlList.innerHTML = '<li>No bots found for this customer.</li>';
-                return;
-            }
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="py-16">
+        <div class="container mx-auto px-6">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-8">How to Get Started?</h2>
+            <div class="flex flex-wrap -mx-4">
+                <div class="w-full md:w-1/3 px-4 mb-8">
+                    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                        <i class="fas fa-comments text-4xl text-blue-600 mb-4"></i>
+                        <h3 class="text-xl font-bold mb-2">1. Contact Me</h3>
+                        <p class="text-gray-600">Contact me via Telegram with your Bot's public URL.</p>
+                    </div>
+                </div>
+                <div class="w-full md:w-1/3 px-4 mb-8">
+                    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                        <i class="fas fa-rupee-sign text-4xl text-green-500 mb-4"></i>
+                        <h3 class="text-xl font-bold mb-2">2. Make Payment</h3>
+                        <p class="text-gray-600">Pay the monthly fee via any UPI app (GPay, PhonePe, etc).</p>
+                    </div>
+                </div>
+                <div class="w-full md:w-1/3 px-4 mb-8">
+                    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                        <i class="fas fa-link text-4xl text-purple-500 mb-4"></i>
+                        <h3 class="text-xl font-bold mb-2">3. Get Your Link</h3>
+                        <p class="text-gray-600">I will provide you with a secret link to your personal monitoring dashboard.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-            urls.forEach(url => {
-                const listItemHTML = `
-                    <li class="url-item" data-url="${url}">
-                        <div class="url-info">
-                            <a href="${url}" target="_blank">${url}</a>
-                            <p class="url-details">Waiting for first check...</p>
-                        </div>
-                        <div class="status waiting">WAITING</div>
-                    </li>
-                `;
-                urlList.innerHTML += listItemHTML;
-            });
-        }
+    <!-- Contact Section -->
+    <section id="contact" class="bg-gray-800 py-16">
+        <div class="container mx-auto px-6 text-center text-white">
+            <h2 class="text-3xl font-bold mb-4">Ready to Start?</h2>
+            <p class="mb-8">Contact me on Telegram to get your bot online now!</p>
+            <!-- यहाँ अपना टेलीग्राम लिंक डालो -->
+            <a href="https://t.me/YOUR_TELEGRAM_USERNAME" target="_blank" class="inline-block px-8 py-4 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700">
+                <i class="fab fa-telegram-plane mr-2"></i> Contact on Telegram
+            </a>
+        </div>
+    </section>
 
-        function updateStatuses() {
-            fetch('/status')
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.statuses) return;
-                    
-                    const allItems = document.querySelectorAll('.url-item');
-                    allItems.forEach(item => {
-                        const url = item.dataset.url;
-                        const statusData = data.statuses[url];
-                        
-                        if (!statusData) return;
+    <!-- Footer -->
+    <footer class="bg-white py-6">
+        <div class="container mx-auto px-6 text-center text-gray-600">
+            <p>&copy; 2024 UptimePinger. All Rights Reserved. Created by [Your Name].</p>
+        </div>
+    </footer>
 
-                        const detailsEl = item.querySelector('.url-details');
-                        const statusEl = item.querySelector('.status');
-                        
-                        let displayTime = "Waiting...";
-                        if (statusData.timestamp) {
-                            const utcDate = new Date(statusData.timestamp);
-                            displayTime = utcDate.toLocaleString(); 
-                        }
-
-                        if (statusData.status === 'live' || statusData.status === 'recovered') {
-                            detailsEl.innerText = `Last Check: ${displayTime}`;
-                        } else if (statusData.status === 'down') {
-                            detailsEl.innerText = `Error: ${statusData.error} | At: ${displayTime}`;
-                        } else {
-                            detailsEl.innerText = `Last Check: ${displayTime}`;
-                        }
-                        
-                        let statusClass = 'waiting';
-                        let statusText = statusData.status ? statusData.status.toUpperCase() : 'WAITING';
-                        if (statusData.status === 'live') statusClass = 'live';
-                        else if (statusData.status === 'down') statusClass = 'down';
-                        else if (statusData.status === 'recovered') statusClass = 'recovered';
-
-                        statusEl.innerText = statusText;
-                        statusEl.className = `status ${statusClass}`;
-                    });
-
-                    const now = new Date();
-                    document.getElementById('last-updated').innerText = `Dashboard Updated: ${now.toLocaleTimeString()}`;
-                })
-                .catch(error => console.error('Error fetching status:', error));
-        }
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            createInitialList();
-            updateStatuses();
-            setInterval(updateStatuses, 5000);
-        });
-    </script>
 </body>
 </html>
