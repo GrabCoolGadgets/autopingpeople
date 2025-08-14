@@ -1,6 +1,6 @@
 import os
 import requests
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 from datetime import datetime
@@ -83,18 +83,6 @@ def ping_all_services():
     finally:
         lock.release()
 
-# --- यह है सबसे बड़ा और सही बदलाव: "पिंग #2" को वापस लाना ---
-@app.before_request
-def before_request_func():
-    # यह सिर्फ डैशबोर्ड वाले पेज पर ही चलेगा, लैंडिंग पेज और status API पर नहीं
-    if request.endpoint in ['admin_dashboard', 'customer_dashboard']:
-        logging.info("--- Dashboard refresh triggered. Running immediate ping cycle. ---")
-        # हम इसे एक अलग थ्रेड में चलाएंगे ताकि पेज तुरंत लोड हो जाए
-        from threading import Thread
-        thread = Thread(target=ping_all_services)
-        thread.daemon = True
-        thread.start()
-
 @app.route('/')
 def landing_page():
     return render_template('index.html', bots_for_demo=ALL_CUSTOMERS_BOTS.get("admin", {}))
@@ -116,14 +104,15 @@ def get_status():
     statuses = read_statuses()
     return jsonify({'statuses': statuses})
     
-# अलार्म #1: पिंगर (बैकअप)
 scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
-scheduler.add_job(ping_all_services, 'interval', minutes=5)
-# अलार्म #2: डेटा चेकर
+# अलार्म #1: पिंगर, जो हर 1 मिनट में चलेगा (तेज और सुरक्षित)
+scheduler.add_job(ping_all_services, 'interval', minutes=1)
+# अलार्म #2: डेटा चेकर, जो हर 30 सेकंड में चलेगा (सुपर फास्ट!)
 scheduler.add_job(update_customer_data_only, 'interval', seconds=30)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
     update_customer_data_only()
+    ping_all_services()
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
