@@ -1,6 +1,6 @@
 import os
 import requests
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 from datetime import datetime
@@ -46,28 +46,21 @@ def get_customers_from_gist():
 
 def update_customer_data_only():
     global ALL_CUSTOMERS_BOTS
-    
-    logging.info("--- Checking for Gist updates... ---")
     new_customer_data = get_customers_from_gist()
-    
     if new_customer_data and new_customer_data != ALL_CUSTOMERS_BOTS:
         ALL_CUSTOMERS_BOTS = new_customer_data
-        logging.info("Customer data updated successfully!")
-    else:
-        logging.info("No changes in customer data.")
+        logging.info("Customer data updated!")
 
 def ping_all_services():
-    if not ALL_CUSTOMERS_BOTS:
-        update_customer_data_only()
-
+    if not ALL_CUSTOMERS_BOTS: return
+        
+    all_bots_to_ping = list(set([url for bots in ALL_CUSTOMERS_BOTS.values() for url in bots.values()]))
+    
     if not lock.acquire(blocking=False): return
     try:
-        all_bots_to_ping = list(set([url for bots in ALL_CUSTOMERS_BOTS.values() for url in bots.values()]))
-        logging.info(f"--- Ping cycle started for {len(all_bots_to_ping)} total bots... ---")
-
+        logging.info(f"--- Ping cycle started for {len(all_bots_to_ping)} bots ---")
         pinger_dashboard_url = os.environ.get('RENDER_EXTERNAL_URL')
-        if pinger_dashboard_url and pinger_dashboard_url not in all_bots_to_ping:
-            all_bots_to_ping.append(pinger_dashboard_url)
+        if pinger_dashboard_url: all_bots_to_ping.append(pinger_dashboard_url)
 
         current_statuses = read_statuses()
         for url in all_bots_to_ping:
@@ -83,17 +76,28 @@ def ping_all_services():
                     current_statuses[url] = {'status': 'down', 'code': response.status_code, 'error': f"HTTP {response.status_code}", 'timestamp': timestamp}
             except requests.RequestException as e:
                 current_statuses[url] = {'status': 'down', 'code': None, 'error': str(e.__class__.__name__), 'timestamp': timestamp}
-            time.sleep(1)
+            time.sleep(2)
         
         write_statuses(current_statuses)
-        logging.info("--- Ping Cycle Finished and statuses saved. ---")
+        logging.info("--- Ping Cycle Finished ---")
     finally:
         lock.release()
 
+# --- यह है सबसे बड़ा और सही बदलाव: "पिंग #2" को वापस लाना ---
+@app.before_request
+def before_request_func():
+    # यह सिर्फ डैशबोर्ड वाले पेज पर ही चलेगा, लैंडिंग पेज और status API पर नहीं
+    if request.endpoint in ['admin_dashboard', 'customer_dashboard']:
+        logging.info("--- Dashboard refresh triggered. Running immediate ping cycle. ---")
+        # हम इसे एक अलग थ्रेड में चलाएंगे ताकि पेज तुरंत लोड हो जाए
+        from threading import Thread
+        thread = Thread(target=ping_all_services)
+        thread.daemon = True
+        thread.start()
+
 @app.route('/')
 def landing_page():
-    admin_bots = ALL_CUSTOMERS_BOTS.get("admin", {})
-    return render_template('index.html', bots_for_demo=admin_bots)
+    return render_template('index.html', bots_for_demo=ALL_CUSTOMERS_BOTS.get("admin", {}))
 
 @app.route('/admin')
 def admin_dashboard():
@@ -104,7 +108,7 @@ def admin_dashboard():
 def customer_dashboard(customer_name):
     customer_bots = ALL_CUSTOMERS_BOTS.get(customer_name)
     if customer_bots is None:
-        return "<h2>Customer Not Found!</h2><p>Please check the URL.</p>", 404
+        return "<h2>Customer Not Found!</h2>", 404
     return render_template('dashboard.html', bots_for_this_page=customer_bots)
 
 @app.route('/status')
@@ -112,16 +116,14 @@ def get_status():
     statuses = read_statuses()
     return jsonify({'statuses': statuses})
     
-# --- यह है सबसे बड़ा और सही बदलाव ---
+# अलार्म #1: पिंगर (बैकअप)
 scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
-# अलार्म #1: पिंगर, जो हर 5 मिनट में चलेगा (सुरक्षित)
 scheduler.add_job(ping_all_services, 'interval', minutes=5)
-# अलार्म #2: डेटा चेकर, जो हर 10 सेकंड में चलेगा (सुपर फास्ट!)
-scheduler.add_job(update_customer_data_only, 'interval', seconds=10)
+# अलार्म #2: डेटा चेकर
+scheduler.add_job(update_customer_data_only, 'interval', seconds=30)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
     update_customer_data_only()
-    ping_all_services()
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
