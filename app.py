@@ -33,7 +33,7 @@ def write_statuses(statuses):
         json.dump(statuses, f)
 
 def get_customers_from_gist():
-    """यह फंक्शन हमेशा Gist से ताज़ा डेटा लाएगा। यह सबसे ज़रूरी फंक्शन है।"""
+    """यह फंक्शन हमेशा Gist से ताज़ा डेटा लाएगा।"""
     try:
         # "कैश बस्टिंग" ताकि हमेशा ताज़ा डेटा मिले
         cache_buster_url = f"{CUSTOMER_DATA_URL}?v={int(time.time())}"
@@ -51,14 +51,17 @@ def ping_all_services():
         logging.warning("Customer data is empty. Skipping ping cycle.")
         return
 
+    # --- यह है सबसे बड़ा और सही बदलाव ---
+    # अब हम डुप्लीकेट URLs को भी सही से हैंडल करेंगे
     all_bots_to_ping = list(set([url for bots in all_customers_bots.values() for url in bots.values()]))
     ping_statuses = read_statuses()
     
     if not lock.acquire(blocking=False): return
     try:
-        logging.info(f"--- Ping cycle started for {len(all_bots_to_ping)} total bots... ---")
+        logging.info(f"--- Ping cycle started for {len(all_bots_to_ping)} unique bots... ---")
         pinger_dashboard_url = os.environ.get('RENDER_EXTERNAL_URL')
-        if pinger_dashboard_url:
+        # सुनिश्चित करें कि सेल्फ-पिंग URL डुप्लीकेट न हो
+        if pinger_dashboard_url and pinger_dashboard_url not in all_bots_to_ping:
             all_bots_to_ping.append(pinger_dashboard_url)
 
         for url in all_bots_to_ping:
@@ -83,8 +86,6 @@ def ping_all_services():
 
 @app.route('/')
 def landing_page():
-    # --- यह है सबसे बड़ा और सही बदलाव ---
-    # अब यह फंक्शन भी Gist से हमेशा ताज़ा डेटा पढ़ेगा
     all_customers_bots = get_customers_from_gist()
     admin_bots = all_customers_bots.get("admin", {})
     return render_template('index.html', bots_for_demo=admin_bots)
@@ -114,4 +115,6 @@ scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
+    # सर्वर शुरू होते ही पहली बार पिंग करो ताकि डैशबोर्ड खाली न दिखे
+    ping_all_services()
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
