@@ -8,47 +8,62 @@ import atexit
 from waitress import serve
 from threading import Lock
 import time
+import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 app = Flask(__name__)
 lock = Lock()
 
-# --- यह है तुम्हारा कस्टमर डेटाबेस ---
-# जब कोई नया ग्राहक आए, तो बस यहाँ उसका नाम और बॉट का URL जोड़ दो
-ALL_CUSTOMERS_BOTS = {
-    # तुम्हारा एडमिन डैशबोर्ड, जिसका लाइव डेमो लैंडिंग पेज पर दिखेगा
-    "admin": {
-        "MDisk Web Server": "https://mdiskwebser.onrender.com",
-        "SD Web Bot 234": "https://sdwb234.onrender.com",
-    },
-    # पहले ग्राहक का डैशबोर्ड
-    "rahul": {
-        "Rahul's Movie Bot": "https://rahul-bot1.onrender.com",
-        "Rahul's Second Bot": "https://rahul-bot2.onrender.com",
-    },
-    # दूसरे ग्राहक का डैशबोर्ड
-    "priya": {
-        "Priya's Main Bot": "https://priya-bot.onrender.com",
-    }
-    # नया ग्राहक जोड़ने के लिए बस यहाँ एक और लाइन जोड़ दो:
-    # "customer_name": { "Bot Name": "bot_url" },
-}
+# --- यह है तुम्हारी रेसिपी की किताब का पता ---
+# यहाँ पर तुम अपनी पब्लिक रिपो का "Raw" URL डालोगे
+# मैंने अभी के लिए एक उदाहरण डाल दिया है, तुम इसे बदल देना
+CUSTOMER_DATA_URL = "https://raw.githubusercontent.com/GrabCoolGadgets/Ping-Customer/main/customers.json"
 
-# --- Status Storage ---
-ALL_BOTS_TO_PING = list(set([url for customer_bots in ALL_CUSTOMERS_BOTS.values() for url in customer_bots.values()]))
-ping_statuses = {url: {'status': 'waiting'} for url in ALL_BOTS_TO_PING}
+# --- यह अब खाली शुरू होंगे और URL से भरे जाएंगे ---
+ALL_CUSTOMERS_BOTS = {}
+ping_statuses = {}
+
+def update_customer_data():
+    global ALL_CUSTOMERS_BOTS, ping_statuses
+    try:
+        logging.info("Fetching latest customer data from Raw URL...")
+        
+        # "कैश बस्टिंग" ताकि हमेशा ताज़ा डेटा मिले
+        cache_buster_url = f"{CUSTOMER_DATA_URL}?v={int(time.time())}"
+        
+        headers = {'Cache-Control': 'no-cache'}
+        response = requests.get(cache_buster_url, headers=headers, timeout=15)
+        response.raise_for_status()
+        new_customer_data = response.json()
+        
+        if new_customer_data != ALL_CUSTOMERS_BOTS:
+            ALL_CUSTOMERS_BOTS = new_customer_data
+            all_bots = list(set([url for bots in ALL_CUSTOMERS_BOTS.values() for url in bots.values()]))
+            
+            for url in all_bots:
+                if url not in ping_statuses:
+                    ping_statuses[url] = {'status': 'waiting'}
+            logging.info("Customer data updated successfully!")
+        else:
+            logging.info("No changes in customer data.")
+
+    except Exception as e:
+        logging.error(f"Failed to update customer data: {e}")
 
 def ping_all_services():
+    update_customer_data()
+    
     if not lock.acquire(blocking=False): return
     try:
-        logging.info(f"--- Ping cycle started for {len(ALL_BOTS_TO_PING)} total bots... ---")
-        pinger_dashboard_url = os.environ.get('RENDER_EXTERNAL_URL')
-        urls_to_check = list(ALL_BOTS_TO_PING)
-        if pinger_dashboard_url and pinger_dashboard_url not in urls_to_check:
-            urls_to_check.append(pinger_dashboard_url)
+        all_bots_to_ping = list(set([url for bots in ALL_CUSTOMERS_BOTS.values() for url in bots.values()]))
+        logging.info(f"--- Ping cycle started for {len(all_bots_to_ping)} total bots... ---")
 
-        for url in urls_to_check:
+        pinger_dashboard_url = os.environ.get('RENDER_EXTERNAL_URL')
+        if pinger_dashboard_url and pinger_dashboard_url not in all_bots_to_ping:
+            all_bots_to_ping.append(pinger_dashboard_url)
+
+        for url in all_bots_to_ping:
             timestamp = datetime.utcnow().isoformat() + "Z"
             previous_status = ping_statuses.get(url, {}).get('status', 'waiting')
             try:
@@ -61,7 +76,7 @@ def ping_all_services():
                     ping_statuses[url] = {'status': 'down', 'code': response.status_code, 'error': f"HTTP {response.status_code}", 'timestamp': timestamp}
             except requests.RequestException as e:
                 ping_statuses[url] = {'status': 'down', 'code': None, 'error': str(e.__class__.__name__), 'timestamp': timestamp}
-            time.sleep(2)
+            time.sleep(1)
         logging.info("--- Ping Cycle Finished ---")
     finally:
         lock.release()
@@ -93,5 +108,5 @@ scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    ping_all_services()
+    update_customer_data()
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
