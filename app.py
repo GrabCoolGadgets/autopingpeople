@@ -15,26 +15,21 @@ app = Flask(__name__)
 lock = Lock()
 
 # --- यह है तुम्हारा कस्टमर डेटाबेस ---
-# जब कोई नया ग्राहक आए, तो बस यहाँ उसका नाम और बॉट का URL जोड़ दो
 ALL_CUSTOMERS_BOTS = {
-    # यह तुम्हारा अपना, एडमिन डैशबोर्ड है, जो सब कुछ दिखाएगा
-    # इसका सीक्रेट नाम "admin" है
+    # तुम्हारा एडमिन डैशबोर्ड, जो सब कुछ दिखाएगा
     "admin": [
         "https://mdiskwebser.onrender.com",
         "https://sdwb234.onrender.com",
         # ... तुम यहाँ अपने पर्सनल बॉट भी डाल सकते हो
     ],
-    # यह तुम्हारे पहले ग्राहक का डैशबोर्ड है
+    # पहले ग्राहक का डैशबोर्ड
     "rahul": [
         "https://rahul-bot1.onrender.com",
-        "https://rahul-bot2.onrender.com",
     ],
-    # यह तुम्हारे दूसरे ग्राहक का डैशबोर्ड है
+    # दूसरे ग्राहक का डैशबोर्ड
     "priya": [
         "https://priya-bot.onrender.com",
     ]
-    # नया ग्राहक जोड़ने के लिए बस यहाँ एक और लाइन जोड़ दो:
-    # "customer_name": [ "bot_url" ],
 }
 
 # --- Status Storage ---
@@ -42,13 +37,9 @@ ALL_BOTS_TO_PING = list(set([url for customer_bots in ALL_CUSTOMERS_BOTS.values(
 ping_statuses = {url: {'status': 'waiting'} for url in ALL_BOTS_TO_PING}
 
 def ping_all_services():
-    if not lock.acquire(blocking=False):
-        logging.warning("Ping cycle is already running. Skipping this run.")
-        return
-
+    if not lock.acquire(blocking=False): return
     try:
         logging.info(f"--- Ping cycle started for {len(ALL_BOTS_TO_PING)} total bots... ---")
-        
         pinger_dashboard_url = os.environ.get('RENDER_EXTERNAL_URL')
         urls_to_check = list(ALL_BOTS_TO_PING)
         if pinger_dashboard_url and pinger_dashboard_url not in urls_to_check:
@@ -57,7 +48,6 @@ def ping_all_services():
         for url in urls_to_check:
             timestamp = datetime.utcnow().isoformat() + "Z"
             previous_status = ping_statuses.get(url, {}).get('status', 'waiting')
-            
             try:
                 response = requests.get(url, timeout=30)
                 if response.ok:
@@ -68,18 +58,21 @@ def ping_all_services():
                     ping_statuses[url] = {'status': 'down', 'code': response.status_code, 'error': f"HTTP {response.status_code}", 'timestamp': timestamp}
             except requests.RequestException as e:
                 ping_statuses[url] = {'status': 'down', 'code': None, 'error': str(e.__class__.__name__), 'timestamp': timestamp}
-            
             time.sleep(2)
-        
         logging.info("--- Ping Cycle Finished ---")
-    
     finally:
         lock.release()
 
 @app.route('/')
+def landing_page():
+    # मुख्य URL खोलने पर सुंदर लैंडिंग पेज दिखेगा
+    return render_template('index.html')
+
+@app.route('/admin')
 def admin_dashboard():
-    # मुख्य URL खोलने पर एडमिन डैशबोर्ड दिखेगा
-    return render_template('index.html', bot_urls_for_this_page=ALL_CUSTOMERS_BOTS.get("admin", []))
+    # /admin खोलने पर एडमिन डैशबोर्ड दिखेगा
+    all_bots = [url for customer_bots in ALL_CUSTOMERS_BOTS.values() for url in customer_bots]
+    return render_template('dashboard.html', bot_urls_for_this_page=all_bots)
 
 @app.route('/<customer_name>')
 def customer_dashboard(customer_name):
@@ -87,7 +80,7 @@ def customer_dashboard(customer_name):
     customer_urls = ALL_CUSTOMERS_BOTS.get(customer_name)
     if customer_urls is None:
         return "<h2>Customer Not Found!</h2><p>Please check the URL.</p>", 404
-    return render_template('index.html', bot_urls_for_this_page=customer_urls)
+    return render_template('dashboard.html', bot_urls_for_this_page=customer_urls)
 
 @app.route('/status')
 def get_status():
