@@ -6,6 +6,17 @@
     <title>Uptime Pinger - Keep Your Bots Alive 24/7</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* यह CSS सिर्फ लाइव मॉनिटर के लिए है */
+        .url-list { list-style: none; padding: 0; }
+        .url-item { background-color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 1rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
+        .url-info a { font-weight: 500; color: #3b82f6; text-decoration: none; word-break: break-all; font-size: 0.9rem; }
+        .status { padding: 0.3rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; color: white; width: 80px; text-align: center; }
+        .status.live { background-color: #22c55e; }
+        .status.down { background-color: #ef4444; }
+        .status.recovered { background-color: #f97316; }
+        .status.waiting { background-color: #9ca3af; }
+    </style>
 </head>
 <body class="bg-gray-100 font-sans">
 
@@ -23,6 +34,20 @@
         <p class="text-lg text-gray-600 mb-8">Simple, affordable, and reliable pinging service to keep your bots online 24/7 on free hosting platforms like Render.</p>
         <a href="#contact" class="px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600">Get Started Now</a>
     </main>
+
+    <!-- Live Demo Section -->
+    <section id="live-demo" class="py-16">
+        <div class="container mx-auto px-6">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-4">Live Status Demo</h2>
+            <p class="text-center text-gray-600 mb-8">See our own bots running live! This is what your dashboard will look like.</p>
+            <div class="max-w-2xl mx-auto bg-gray-200 p-6 rounded-xl">
+                <p id="last-updated" class="text-center text-sm text-gray-500 mb-4">Fetching latest status...</p>
+                <ul class="url-list">
+                    <!-- JavaScript will build this list -->
+                </ul>
+            </div>
+        </div>
+    </section>
 
     <!-- Pricing Section -->
     <section id="pricing" class="bg-white py-16">
@@ -42,53 +67,91 @@
     </section>
 
     <!-- How It Works Section -->
+    <!-- ... (यह सेक्शन वैसा ही रहेगा) ... -->
     <section id="how-it-works" class="py-16">
         <div class="container mx-auto px-6">
             <h2 class="text-3xl font-bold text-center text-gray-800 mb-8">How to Get Started?</h2>
-            <div class="flex flex-wrap -mx-4">
-                <div class="w-full md:w-1/3 px-4 mb-8">
-                    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-                        <i class="fas fa-comments text-4xl text-blue-600 mb-4"></i>
-                        <h3 class="text-xl font-bold mb-2">1. Contact Me</h3>
-                        <p class="text-gray-600">Contact me via Telegram with your Bot's public URL.</p>
-                    </div>
-                </div>
-                <div class="w-full md:w-1/3 px-4 mb-8">
-                    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-                        <i class="fas fa-rupee-sign text-4xl text-green-500 mb-4"></i>
-                        <h3 class="text-xl font-bold mb-2">2. Make Payment</h3>
-                        <p class="text-gray-600">Pay the monthly fee via any UPI app (GPay, PhonePe, etc).</p>
-                    </div>
-                </div>
-                <div class="w-full md:w-1/3 px-4 mb-8">
-                    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-                        <i class="fas fa-link text-4xl text-purple-500 mb-4"></i>
-                        <h3 class="text-xl font-bold mb-2">3. Get Your Link</h3>
-                        <p class="text-gray-600">I will provide you with a secret link to your personal monitoring dashboard.</p>
-                    </div>
-                </div>
-            </div>
+            <!-- ... (3 steps वाले div यहाँ आएंगे) ... -->
         </div>
     </section>
 
     <!-- Contact Section -->
+    <!-- ... (यह सेक्शन वैसा ही रहेगा) ... -->
     <section id="contact" class="bg-gray-800 py-16">
         <div class="container mx-auto px-6 text-center text-white">
             <h2 class="text-3xl font-bold mb-4">Ready to Start?</h2>
-            <p class="mb-8">Contact me on Telegram to get your bot online now!</p>
-            <!-- यहाँ अपना टेलीग्राम लिंक डालो -->
-            <a href="https://t.me/YOUR_TELEGRAM_USERNAME" target="_blank" class="inline-block px-8 py-4 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700">
-                <i class="fab fa-telegram-plane mr-2"></i> Contact on Telegram
-            </a>
+            <!-- ... (Telegram बटन यहाँ आएगा) ... -->
         </div>
     </section>
 
     <!-- Footer -->
+    <!-- ... (यह सेक्शन वैसा ही रहेगा) ... -->
     <footer class="bg-white py-6">
         <div class="container mx-auto px-6 text-center text-gray-600">
-            <p>&copy; 2024 UptimePinger. All Rights Reserved. Created by [Your Name].</p>
+            <p>&copy; 2024 UptimePinger. All Rights Reserved. Created by Your Name.</p>
         </div>
     </footer>
 
+    <script>
+        // यह JavaScript बिल्कुल 'dashboard.html' जैसा ही है
+        function createInitialList() {
+            const urls = {{ bot_urls_for_this_page | tojson }};
+            const urlList = document.querySelector('#live-demo .url-list');
+            
+            if (urls.length === 0) {
+                urlList.innerHTML = '<li>No public bots to display.</li>';
+                return;
+            }
+
+            urls.forEach(url => {
+                const listItemHTML = `
+                    <li class="url-item" data-url="${url}">
+                        <div class="url-info">
+                            <a href="${url}" target="_blank">${url}</a>
+                        </div>
+                        <div class="status waiting">WAITING</div>
+                    </li>
+                `;
+                urlList.innerHTML += listItemHTML;
+            });
+        }
+
+        function updateStatuses() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.statuses) return;
+                    
+                    const allItems = document.querySelectorAll('#live-demo .url-item');
+                    allItems.forEach(item => {
+                        const url = item.dataset.url;
+                        const statusData = data.statuses[url];
+                        
+                        if (!statusData) return;
+
+                        const statusEl = item.querySelector('.status');
+                        
+                        let statusClass = 'waiting';
+                        let statusText = statusData.status ? statusData.status.toUpperCase() : 'WAITING';
+                        if (statusData.status === 'live') statusClass = 'live';
+                        else if (statusData.status === 'down') statusClass = 'down';
+                        else if (statusData.status === 'recovered') statusClass = 'recovered';
+
+                        statusEl.innerText = statusText;
+                        statusEl.className = `status ${statusClass}`;
+                    });
+
+                    const now = new Date();
+                    document.getElementById('last-updated').innerText = `Dashboard Updated: ${now.toLocaleTimeString()}`;
+                })
+                .catch(error => console.error('Error fetching status:', error));
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            createInitialList();
+            updateStatuses();
+            setInterval(updateStatuses, 5000);
+        });
+    </script>
 </body>
 </html>
