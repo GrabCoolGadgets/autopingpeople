@@ -20,8 +20,8 @@ ALL_CUSTOMERS_BOTS = {
         "MDisk Web Server": "https://mdiskwebser.onrender.com",
         "SD Web Bot 234": "https://sdwb234.onrender.com",
     },
-    "rahul": {
-        "Rahul's Movie Bot": "https://rahul-bot1.onrender.com",
+    "blogger": {
+        "Blogger Upload Bot": "https://blogger-fk4r.onrender.com",
     },
     "priya": {
         "Priya's Main Bot": "https://priya-bot.onrender.com",
