@@ -15,8 +15,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 app = Flask(__name__)
 lock = Lock()
 
-# --- यह है तुम्हारी रेसिपी की किताब का नया, सही पता ---
-# मैंने तुम्हारा पब्लिक रिपो वाला Raw URL यहाँ डाल दिया है
+# --- यह है तुम्हारी रेसिपी की किताब का पता ---
 CUSTOMER_DATA_URL = "https://raw.githubusercontent.com/GrabCoolGadgets/Ping-Customer/main/customers.json"
     
 # स्टेटस को स्टोर करने के लिए एक फाइल का इस्तेमाल करेंगे
@@ -34,6 +33,7 @@ def write_statuses(statuses):
         json.dump(statuses, f)
 
 def get_customers_from_gist():
+    """यह फंक्शन हमेशा Gist से ताज़ा डेटा लाएगा। यह सबसे ज़रूरी फंक्शन है।"""
     try:
         # "कैश बस्टिंग" ताकि हमेशा ताज़ा डेटा मिले
         cache_buster_url = f"{CUSTOMER_DATA_URL}?v={int(time.time())}"
@@ -43,7 +43,7 @@ def get_customers_from_gist():
         return response.json()
     except Exception as e:
         logging.error(f"CRITICAL: Failed to fetch customer data from GitHub: {e}")
-        return {}
+        return {} # अगर Gist न मिले, तो खाली डेटा भेजो
 
 def ping_all_services():
     all_customers_bots = get_customers_from_gist()
@@ -83,6 +83,8 @@ def ping_all_services():
 
 @app.route('/')
 def landing_page():
+    # --- यह है सबसे बड़ा और सही बदलाव ---
+    # अब यह फंक्शन भी Gist से हमेशा ताज़ा डेटा पढ़ेगा
     all_customers_bots = get_customers_from_gist()
     admin_bots = all_customers_bots.get("admin", {})
     return render_template('index.html', bots_for_demo=admin_bots)
@@ -112,6 +114,4 @@ scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    # सर्वर शुरू होते ही पहली बार पिंग करो ताकि डैशबोर्ड खाली न दिखे
-    ping_all_services()
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
