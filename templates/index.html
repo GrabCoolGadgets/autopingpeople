@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Uptime Pinger - Keep Your Bots Alive 24/7</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -117,20 +117,22 @@
 
     <script>
         function createInitialList() {
-            const urls = {{ bot_urls_for_this_page | tojson }};
+            const bots = {{ bots_for_demo | tojson }};
             const urlList = document.querySelector('#live-demo .url-list');
             if (!urlList) return;
             
-            if (urls.length === 0) {
+            const botNames = Object.keys(bots);
+            if (botNames.length === 0) {
                 urlList.innerHTML = '<li>No public bots to display.</li>';
                 return;
             }
 
-            urls.forEach(url => {
+            botNames.forEach(name => {
+                const url = bots[name];
                 const listItemHTML = `
                     <li class="url-item" data-url="${url}">
                         <div class="url-info">
-                            <a href="${url}" target="_blank">${url}</a>
+                            <a href="${url}" target="_blank">${name}</a>
                         </div>
                         <div class="status waiting">WAITING</div>
                     </li>
