@@ -15,31 +15,38 @@ app = Flask(__name__)
 lock = Lock()
 
 # --- यह है तुम्हारा कस्टमर डेटाबेस ---
+# जब कोई नया ग्राहक आए, तो बस यहाँ उसका नाम और बॉट का URL जोड़ दो
 ALL_CUSTOMERS_BOTS = {
-    # तुम्हारा एडमिन डैशबोर्ड, जो सब कुछ दिखाएगा
+    # तुम्हारा एडमिन डैशबोर्ड, जिसका लाइव डेमो लैंडिंग पेज पर दिखेगा
     "admin": [
         "https://mdiskwebser.onrender.com",
         "https://sdwb234.onrender.com",
-        # ... तुम यहाँ अपने पर्सनल बॉट भी डाल सकते हो
     ],
     # पहले ग्राहक का डैशबोर्ड
     "rahul": [
         "https://rahul-bot1.onrender.com",
+        "https://rahul-bot2.onrender.com",
     ],
     # दूसरे ग्राहक का डैशबोर्ड
     "priya": [
         "https://priya-bot.onrender.com",
     ]
+    # नया ग्राहक जोड़ने के लिए बस यहाँ एक और लाइन जोड़ दो:
+    # "customer_name": [ "bot_url" ],
 }
 
 # --- Status Storage ---
+# यह अपने आप सारे बॉट्स की एक यूनिक लिस्ट बना लेगा
 ALL_BOTS_TO_PING = list(set([url for customer_bots in ALL_CUSTOMERS_BOTS.values() for url in customer_bots]))
 ping_statuses = {url: {'status': 'waiting'} for url in ALL_BOTS_TO_PING}
 
 def ping_all_services():
-    if not lock.acquire(blocking=False): return
+    if not lock.acquire(blocking=False):
+        logging.warning("Ping cycle is already running. Skipping this run.")
+        return
     try:
         logging.info(f"--- Ping cycle started for {len(ALL_BOTS_TO_PING)} total bots... ---")
+        
         pinger_dashboard_url = os.environ.get('RENDER_EXTERNAL_URL')
         urls_to_check = list(ALL_BOTS_TO_PING)
         if pinger_dashboard_url and pinger_dashboard_url not in urls_to_check:
@@ -66,12 +73,14 @@ def ping_all_services():
 @app.route('/')
 def landing_page():
     # मुख्य URL खोलने पर सुंदर लैंडिंग पेज दिखेगा
-    return render_template('index.html')
+    # और हम उसे एडमिन वाले बॉट्स की लिस्ट भेजेंगे ताकि वह लाइव डेमो दिखा सके
+    admin_bots = ALL_CUSTOMERS_BOTS.get("admin", [])
+    return render_template('index.html', bot_urls_for_this_page=admin_bots)
 
 @app.route('/admin')
 def admin_dashboard():
-    # /admin खोलने पर एडमिन डैशबोर्ड दिखेगा
-    all_bots = [url for customer_bots in ALL_CUSTOMERS_BOTS.values() for url in customer_bots]
+    # /admin खोलने पर एडमिन डैशबोर्ड दिखेगा (सारे बॉट्स के साथ)
+    all_bots = list(set([url for customer_bots in ALL_CUSTOMERS_BOTS.values() for url in customer_bots]))
     return render_template('dashboard.html', bot_urls_for_this_page=all_bots)
 
 @app.route('/<customer_name>')
