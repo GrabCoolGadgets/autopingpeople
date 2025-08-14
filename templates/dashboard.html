@@ -6,9 +6,6 @@
     <title>Monitoring Dashboard - UptimePinger</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        /* Custom styles can go here if needed */
-    </style>
 </head>
 <body class="bg-gray-100 font-sans flex flex-col min-h-screen">
 
@@ -44,7 +41,6 @@
         </div>
     </footer>
 
-    <!-- CSS for Status Badges (moved here from internal style for better organization) -->
     <style>
         .status { padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; color: white; width: 100px; text-align: center; }
         .status.live { background-color: #22c55e; }
@@ -55,19 +51,21 @@
 
     <script>
         function createInitialList() {
-            const urls = {{ bot_urls_for_this_page | tojson }};
+            const bots = {{ bots_for_this_page | tojson }};
             const urlList = document.querySelector('.url-list');
             
-            if (urls.length === 0) {
+            if (Object.keys(bots).length === 0) {
                 urlList.innerHTML = '<div class="bg-white p-6 rounded-lg shadow-md text-center text-gray-500">No bots are being monitored on this dashboard.</div>';
                 return;
             }
 
-            urls.forEach(url => {
+            const botNames = Object.keys(bots);
+            botNames.forEach(name => {
+                const url = bots[name];
                 const listItemHTML = `
                     <div class="url-item bg-white p-5 rounded-lg shadow-md flex items-center justify-between" data-url="${url}">
                         <div class="url-info">
-                            <a href="${url}" target="_blank" class="font-semibold text-blue-600 hover:underline break-all">${url}</a>
+                            <a href="${url}" target="_blank" class="font-semibold text-blue-600 hover:underline break-all">${name}</a>
                             <p class="url-details text-sm text-gray-500 mt-1">Waiting for first check...</p>
                         </div>
                         <div class="status waiting ml-4 flex-shrink-0">WAITING</div>
