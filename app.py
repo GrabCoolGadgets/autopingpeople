@@ -1,87 +1,73 @@
 import os
 import requests
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 from datetime import datetime
 import atexit
 from waitress import serve
-from threading import Lock
+from threading import Lock, Thread
 import time
-import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 app = Flask(__name__)
 lock = Lock()
 
-CUSTOMER_DATA_URL = "https://gist.githubusercontent.com/GrabCoolGadgets/e6fb83fa7e519aa7f872198186f2944e/raw/customers.json"
-    
-STATUS_FILE = 'ping_statuses.json'
+# --- यह है तुम्हारा भरोसेमंद, ऑफलाइन कस्टमर डेटाबेस ---
+ALL_CUSTOMERS_BOTS = {
+    "admin": {
+        "MDisk Web Server": "https://mdiskwebser.onrender.com",
+        "SD Web Bot 234": "https://sdwb234.onrender.com",
+    },
+    "rahul": {
+        "Rahul's Movie Bot": "https://rahul-bot1.onrender.com",
+    },
+    "priya": {
+        "Priya's Main Bot": "https://priya-bot.onrender.com",
+    }
+}
 
-ALL_CUSTOMERS_BOTS = {}
-ping_statuses = {}
-
-def read_statuses():
-    try:
-        with open(STATUS_FILE, 'r') as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-def write_statuses(statuses):
-    with open(STATUS_FILE, 'w') as f:
-        json.dump(statuses, f)
-
-def get_customers_from_gist():
-    try:
-        cache_buster_url = f"{CUSTOMER_DATA_URL}?v={int(time.time())}"
-        headers = {'Cache-Control': 'no-cache'}
-        response = requests.get(cache_buster_url, headers=headers, timeout=15)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        logging.error(f"CRITICAL: Failed to fetch customer data from GitHub: {e}")
-        return ALL_CUSTOMERS_BOTS
-
-def update_customer_data_only():
-    global ALL_CUSTOMERS_BOTS
-    new_customer_data = get_customers_from_gist()
-    if new_customer_data and new_customer_data != ALL_CUSTOMERS_BOTS:
-        ALL_CUSTOMERS_BOTS = new_customer_data
-        logging.info("Customer data updated!")
+# --- Status Storage ---
+ALL_BOTS_TO_PING = list(set([url for customer_bots in ALL_CUSTOMERS_BOTS.values() for url in customer_bots.values()]))
+ping_statuses = {url: {'status': 'waiting'} for url in ALL_BOTS_TO_PING}
 
 def ping_all_services():
-    if not ALL_CUSTOMERS_BOTS: return
-        
-    all_bots_to_ping = list(set([url for bots in ALL_CUSTOMERS_BOTS.values() for url in bots.values()]))
-    
-    if not lock.acquire(blocking=False): return
+    if not lock.acquire(blocking=False):
+        logging.warning("Ping cycle is already running. Skipping this run.")
+        return
     try:
-        logging.info(f"--- Ping cycle started for {len(all_bots_to_ping)} bots ---")
+        logging.info(f"--- Ping cycle started for {len(ALL_BOTS_TO_PING)} bots ---")
         pinger_dashboard_url = os.environ.get('RENDER_EXTERNAL_URL')
-        if pinger_dashboard_url: all_bots_to_ping.append(pinger_dashboard_url)
+        urls_to_check = list(ALL_BOTS_TO_PING)
+        if pinger_dashboard_url and pinger_dashboard_url not in urls_to_check:
+            urls_to_check.append(pinger_dashboard_url)
 
-        current_statuses = read_statuses()
-        for url in all_bots_to_ping:
+        for url in urls_to_check:
             timestamp = datetime.utcnow().isoformat() + "Z"
-            previous_status = current_statuses.get(url, {}).get('status', 'waiting')
+            previous_status = ping_statuses.get(url, {}).get('status', 'waiting')
             try:
                 response = requests.get(url, timeout=30)
                 if response.ok:
                     new_status = 'live'
                     if previous_status == 'down': new_status = 'recovered'
-                    current_statuses[url] = {'status': new_status, 'code': response.status_code, 'error': None, 'timestamp': timestamp}
+                    ping_statuses[url] = {'status': new_status, 'code': response.status_code, 'error': None, 'timestamp': timestamp}
                 else:
-                    current_statuses[url] = {'status': 'down', 'code': response.status_code, 'error': f"HTTP {response.status_code}", 'timestamp': timestamp}
+                    ping_statuses[url] = {'status': 'down', 'code': response.status_code, 'error': f"HTTP {response.status_code}", 'timestamp': timestamp}
             except requests.RequestException as e:
-                current_statuses[url] = {'status': 'down', 'code': None, 'error': str(e.__class__.__name__), 'timestamp': timestamp}
+                ping_statuses[url] = {'status': 'down', 'code': None, 'error': str(e.__class__.__name__), 'timestamp': timestamp}
             time.sleep(2)
-        
-        write_statuses(current_statuses)
         logging.info("--- Ping Cycle Finished ---")
     finally:
         lock.release()
+
+@app.before_request
+def before_request_func():
+    if request.endpoint in ['admin_dashboard', 'customer_dashboard']:
+        logging.info("--- Dashboard refresh triggered. Running immediate ping cycle in background. ---")
+        thread = Thread(target=ping_all_services)
+        thread.daemon = True
+        thread.start()
 
 @app.route('/')
 def landing_page():
@@ -101,18 +87,12 @@ def customer_dashboard(customer_name):
 
 @app.route('/status')
 def get_status():
-    statuses = read_statuses()
-    return jsonify({'statuses': statuses})
-    
+    return jsonify({'statuses': ping_statuses})
+
 scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
-# अलार्म #1: पिंगर, जो हर 1 मिनट में चलेगा (तेज और सुरक्षित)
-scheduler.add_job(ping_all_services, 'interval', minutes=1)
-# अलार्म #2: डेटा चेकर, जो हर 30 सेकंड में चलेगा (सुपर फास्ट!)
-scheduler.add_job(update_customer_data_only, 'interval', seconds=30)
+scheduler.add_job(ping_all_services, 'interval', minutes=5)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    update_customer_data_only()
-    ping_all_services()
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
