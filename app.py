@@ -16,7 +16,6 @@ app = Flask(__name__)
 lock = Lock()
 
 # --- यह है तुम्हारी रेसिपी की किताब का पता ---
-# मैंने तुम्हारा Gist का URL यहाँ डाल दिया है
 CUSTOMER_DATA_URL = "https://gist.githubusercontent.com/GrabCoolGadgets/8cf38c60341641a9db73f5ac6018a5f7/raw/customers.json"
 
 # --- यह अब खाली शुरू होंगे और Gist से भरे जाएंगे ---
@@ -28,9 +27,13 @@ def update_customer_data():
     global ALL_CUSTOMERS_BOTS, ALL_BOTS_TO_PING, ping_statuses
     try:
         logging.info("Fetching latest customer data from Gist...")
-        # GitHub Gist को हमेशा नई जानकारी के लिए चेक करें
+        
+        # --- यह है सबसे बड़ा और सही बदलाव: "कैश बस्टिंग" ---
+        # हम URL के आखिर में एक रैंडम नंबर (समय) जोड़ देंगे ताकि हमेशा ताज़ा डेटा मिले
+        cache_buster_url = f"{CUSTOMER_DATA_URL}?v={int(time.time())}"
+        
         headers = {'Cache-Control': 'no-cache'}
-        response = requests.get(CUSTOMER_DATA_URL, headers=headers, timeout=15)
+        response = requests.get(cache_buster_url, headers=headers, timeout=15)
         response.raise_for_status()
         new_customer_data = response.json()
         
@@ -38,7 +41,6 @@ def update_customer_data():
             ALL_CUSTOMERS_BOTS = new_customer_data
             ALL_BOTS_TO_PING = list(set([url for bots in ALL_CUSTOMERS_BOTS.values() for url in bots.values()]))
             
-            # नए बॉट्स के लिए स्टेटस डिक्शनरी में जगह बनाओ
             for url in ALL_BOTS_TO_PING:
                 if url not in ping_statuses:
                     ping_statuses[url] = {'status': 'waiting'}
@@ -50,7 +52,6 @@ def update_customer_data():
         logging.error(f"Failed to update customer data: {e}")
 
 def ping_all_services():
-    # पिंग करने से ठीक पहले, हमेशा नई ग्राहक लिस्ट चेक करो
     update_customer_data()
     
     if not lock.acquire(blocking=False):
@@ -83,13 +84,11 @@ def ping_all_services():
 
 @app.route('/')
 def landing_page():
-    # लैंडिंग पेज Gist से एडमिन बॉट्स की लिस्ट दिखाएगा
     admin_bots = ALL_CUSTOMERS_BOTS.get("admin", {})
     return render_template('index.html', bots_for_demo=admin_bots)
 
 @app.route('/admin')
 def admin_dashboard():
-    # एडमिन डैशबोर्ड Gist से सारे बॉट्स की लिस्ट दिखाएगा
     all_bots = {name: url for customer_bots in ALL_CUSTOMERS_BOTS.values() for name, url in customer_bots.items()}
     return render_template('dashboard.html', bots_for_this_page=all_bots)
 
@@ -104,15 +103,12 @@ def customer_dashboard(customer_name):
 def get_status():
     return jsonify({'statuses': ping_statuses})
 
-# --- बैकग्राउंड शेड्यूलर ---
 scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
 scheduler.add_job(ping_all_services, 'interval', minutes=5)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    # सर्वर शुरू होते ही पहली बार ग्राहक का डेटा लोड करें
     update_customer_data()
-    # फिर पहली बार पिंग करें
     ping_all_services()
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
