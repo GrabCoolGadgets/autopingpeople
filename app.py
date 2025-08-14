@@ -15,10 +15,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 app = Flask(__name__)
 lock = Lock()
 
-# --- यह है तुम्हारी रेसिपी की किताब का पता ---
 CUSTOMER_DATA_URL = "https://gist.githubusercontent.com/GrabCoolGadgets/e6fb83fa7e519aa7f872198186f2944e/raw/customers.json"
     
-# स्टेटस को स्टोर करने के लिए एक फाइल का इस्तेमाल करेंगे
 STATUS_FILE = 'ping_statuses.json'
 
 ALL_CUSTOMERS_BOTS = {}
@@ -60,7 +58,7 @@ def update_customer_data_only():
 
 def ping_all_services():
     if not ALL_CUSTOMERS_BOTS:
-        update_customer_data_only() # अगर लिस्ट खाली है तो फिर से कोशिश करो
+        update_customer_data_only()
 
     if not lock.acquire(blocking=False): return
     try:
@@ -85,7 +83,7 @@ def ping_all_services():
                     current_statuses[url] = {'status': 'down', 'code': response.status_code, 'error': f"HTTP {response.status_code}", 'timestamp': timestamp}
             except requests.RequestException as e:
                 current_statuses[url] = {'status': 'down', 'code': None, 'error': str(e.__class__.__name__), 'timestamp': timestamp}
-            time.sleep(2)
+            time.sleep(1)
         
         write_statuses(current_statuses)
         logging.info("--- Ping Cycle Finished and statuses saved. ---")
@@ -114,18 +112,16 @@ def get_status():
     statuses = read_statuses()
     return jsonify({'statuses': statuses})
     
+# --- यह है सबसे बड़ा और सही बदलाव ---
 scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
+# अलार्म #1: पिंगर, जो हर 5 मिनट में चलेगा (सुरक्षित)
 scheduler.add_job(ping_all_services, 'interval', minutes=5)
-# डेटा चेकर को भी 5 मिनट पर ही रखते हैं ताकि ज़्यादा लोड न पड़े
-scheduler.add_job(update_customer_data_only, 'interval', minutes=5)
+# अलार्म #2: डेटा चेकर, जो हर 10 सेकंड में चलेगा (सुपर फास्ट!)
+scheduler.add_job(update_customer_data_only, 'interval', seconds=10)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    # --- यह है सबसे बड़ा और सही बदलाव ---
-    # सर्वर शुरू होते ही पहली बार ग्राहक का डेटा लोड करो
     update_customer_data_only()
-    # और फिर तुरंत एक बार पिंग करो!
     ping_all_services()
-    # अब सर्वर को चलाओ
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
