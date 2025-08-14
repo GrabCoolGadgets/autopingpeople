@@ -18,49 +18,35 @@ lock = Lock()
 # --- यह है तुम्हारी रेसिपी की किताब का पता ---
 CUSTOMER_DATA_URL = "https://gist.githubusercontent.com/GrabCoolGadgets/8cf38c60341641a9db73f5ac6018a5f7/raw/customers.json"
 
-# --- यह अब खाली शुरू होंगे और Gist से भरे जाएंगे ---
-ALL_CUSTOMERS_BOTS = {}
-ALL_BOTS_TO_PING = []
+# --- Status Storage (यह अब सिर्फ पिंगर के लिए है) ---
 ping_statuses = {}
 
-def update_customer_data():
-    global ALL_CUSTOMERS_BOTS, ALL_BOTS_TO_PING, ping_statuses
+def get_customers_from_gist():
+    """यह फंक्शन हमेशा Gist से ताज़ा डेटा लाएगा।"""
     try:
-        logging.info("Fetching latest customer data from Gist...")
-        
-        # --- यह है सबसे बड़ा और सही बदलाव: "कैश बस्टिंग" ---
-        # हम URL के आखिर में एक रैंडम नंबर (समय) जोड़ देंगे ताकि हमेशा ताज़ा डेटा मिले
         cache_buster_url = f"{CUSTOMER_DATA_URL}?v={int(time.time())}"
-        
         headers = {'Cache-Control': 'no-cache'}
         response = requests.get(cache_buster_url, headers=headers, timeout=15)
         response.raise_for_status()
-        new_customer_data = response.json()
-        
-        if new_customer_data != ALL_CUSTOMERS_BOTS:
-            ALL_CUSTOMERS_BOTS = new_customer_data
-            ALL_BOTS_TO_PING = list(set([url for bots in ALL_CUSTOMERS_BOTS.values() for url in bots.values()]))
-            
-            for url in ALL_BOTS_TO_PING:
-                if url not in ping_statuses:
-                    ping_statuses[url] = {'status': 'waiting'}
-            logging.info("Customer data updated successfully!")
-        else:
-            logging.info("No changes in customer data.")
-
+        return response.json()
     except Exception as e:
-        logging.error(f"Failed to update customer data: {e}")
+        logging.error(f"CRITICAL: Failed to fetch customer data from Gist: {e}")
+        return {} # अगर Gist न मिले, तो खाली डेटा भेजो
 
 def ping_all_services():
-    update_customer_data()
-    
-    if not lock.acquire(blocking=False):
-        logging.warning("Ping cycle is already running. Skipping this run.")
+    # पिंग करने से ठीक पहले, हमेशा नई ग्राहक लिस्ट चेक करो
+    all_customers_bots = get_customers_from_gist()
+    if not all_customers_bots:
+        logging.warning("Customer data is empty. Skipping ping cycle.")
         return
+
+    all_bots_to_ping = list(set([url for bots in all_customers_bots.values() for url in bots.values()]))
+    
+    if not lock.acquire(blocking=False): return
     try:
-        logging.info(f"--- Ping cycle started for {len(ALL_BOTS_TO_PING)} total bots... ---")
+        logging.info(f"--- Ping cycle started for {len(all_bots_to_ping)} total bots... ---")
         pinger_dashboard_url = os.environ.get('RENDER_EXTERNAL_URL')
-        urls_to_check = list(ALL_BOTS_TO_PING)
+        urls_to_check = list(all_bots_to_ping)
         if pinger_dashboard_url and pinger_dashboard_url not in urls_to_check:
             urls_to_check.append(pinger_dashboard_url)
 
@@ -84,19 +70,22 @@ def ping_all_services():
 
 @app.route('/')
 def landing_page():
-    admin_bots = ALL_CUSTOMERS_BOTS.get("admin", {})
+    all_customers_bots = get_customers_from_gist()
+    admin_bots = all_customers_bots.get("admin", {})
     return render_template('index.html', bots_for_demo=admin_bots)
 
 @app.route('/admin')
 def admin_dashboard():
-    all_bots = {name: url for customer_bots in ALL_CUSTOMERS_BOTS.values() for name, url in customer_bots.items()}
+    all_customers_bots = get_customers_from_gist()
+    all_bots = {name: url for customer_bots in all_customers_bots.values() for name, url in customer_bots.items()}
     return render_template('dashboard.html', bots_for_this_page=all_bots)
 
 @app.route('/<customer_name>')
 def customer_dashboard(customer_name):
-    customer_bots = ALL_CUSTOMERS_BOTS.get(customer_name)
+    all_customers_bots = get_customers_from_gist()
+    customer_bots = all_customers_bots.get(customer_name)
     if customer_bots is None:
-        return "<h2>Customer Not Found!</h2><p>Please check the URL.</p>", 404
+        return "<h2>Customer Not Found!</h2><p>Please check the URL or wait a few minutes if you were just added.</p>", 404
     return render_template('dashboard.html', bots_for_this_page=customer_bots)
 
 @app.route('/status')
@@ -109,6 +98,4 @@ scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    update_customer_data()
-    ping_all_services()
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
