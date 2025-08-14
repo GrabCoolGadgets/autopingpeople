@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realtime Bot Monitor</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f4f7f9; margin: 0; padding: 1.5rem; }
+        .container { max-width: 800px; margin: auto; }
+        .header { text-align: center; margin-bottom: 2rem; }
+        .header h1 { color: #1a202c; margin-bottom: 0.5rem; }
+        .header #last-updated { font-size: 0.9rem; color: #718096; }
+        .url-list { list-style: none; padding: 0; }
+        .url-item { background-color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
+        .url-info a { font-weight: 600; color: #2b6cb0; text-decoration: none; word-break: break-all; }
+        .url-details { font-size: 0.85rem; color: #4a5568; margin-top: 5px; }
+        .status { padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; color: white; width: 100px; text-align: center; }
+        .status.live { background-color: #38a169; }
+        .status.down { background-color: #e53e3e; }
+        .status.recovered { background-color: #dd6b20; }
+        .status.waiting { background-color: #a0aec0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Realtime Bot Monitor</h1>
+            <p id="last-updated">Fetching latest status...</p>
+        </div>
+        <ul class="url-list">
+            <!-- JavaScript will build this list -->
+        </ul>
+    </div>
+
+    <script>
+        function createInitialList() {
+            const urls = {{ bot_urls_for_this_page | tojson }};
+            const urlList = document.querySelector('.url-list');
+            
+            if (urls.length === 0) {
+                urlList.innerHTML = '<li>No bots found for this customer.</li>';
+                return;
+            }
+
+            urls.forEach(url => {
+                const listItemHTML = `
+                    <li class="url-item" data-url="${url}">
+                        <div class="url-info">
+                            <a href="${url}" target="_blank">${url}</a>
+                            <p class="url-details">Waiting for first check...</p>
+                        </div>
+                        <div class="status waiting">WAITING</div>
+                    </li>
+                `;
+                urlList.innerHTML += listItemHTML;
+            });
+        }
+
+        function updateStatuses() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.statuses) return;
+                    
+                    const allItems = document.querySelectorAll('.url-item');
+                    allItems.forEach(item => {
+                        const url = item.dataset.url;
+                        const statusData = data.statuses[url];
+                        
+                        if (!statusData) return;
+
+                        const detailsEl = item.querySelector('.url-details');
+                        const statusEl = item.querySelector('.status');
+                        
+                        let displayTime = "Waiting...";
+                        if (statusData.timestamp) {
+                            const utcDate = new Date(statusData.timestamp);
+                            displayTime = utcDate.toLocaleString(); 
+                        }
+
+                        if (statusData.status === 'live' || statusData.status === 'recovered') {
+                            detailsEl.innerText = `Last Check: ${displayTime}`;
+                        } else if (statusData.status === 'down') {
+                            detailsEl.innerText = `Error: ${statusData.error} | At: ${displayTime}`;
+                        } else {
+                            detailsEl.innerText = `Last Check: ${displayTime}`;
+                        }
+                        
+                        let statusClass = 'waiting';
+                        let statusText = statusData.status ? statusData.status.toUpperCase() : 'WAITING';
+                        if (statusData.status === 'live') statusClass = 'live';
+                        else if (statusData.status === 'down') statusClass = 'down';
+                        else if (statusData.status === 'recovered') statusClass = 'recovered';
+
+                        statusEl.innerText = statusText;
+                        statusEl.className = `status ${statusClass}`;
+                    });
+
+                    const now = new Date();
+                    document.getElementById('last-updated').innerText = `Dashboard Updated: ${now.toLocaleTimeString()}`;
+                })
+                .catch(error => console.error('Error fetching status:', error));
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            createInitialList();
+            updateStatuses();
+            setInterval(updateStatuses, 5000);
+        });
+    </script>
+</body>
+</html>
